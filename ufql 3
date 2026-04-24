@@ -1,0 +1,84 @@
+Серв 1 Серв 2 настройка  без днс
+
+mkdir /etc/net/ifaces/vlan100
+
+vim /etc/net/ifaces/vlan100/options
+TYPE=vlan
+HOST=enp7s1
+VID=100
+
+echo 'TYPE=eth' > /etc/net/ifaces/enp7s1/options
+
+vim /etc/net/ifaces/enp7s1/options > TYPE=eth
+vim /etc/net/ifaces/vlan100/   ipv4address > 192.168.100.2/27   ipv4route  >  default via 192.168.100.1  resolv.conf > nnameserver 77.88.8.8 
+systemctl restart network
+
+настройка sshuser
+
+useradd <имя пользователя> или useradd -u <id> <имя пользователя> с нужным id
+echo "<имя пользователя>:P@ssw0rd" | chpasswd
+usermod -aG wheel <имя пользователя>
+echo "WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/<имя пользователя>
+su -l <имя пользователя>
+sudo id
+(и не забыть выйти после)
+
+vim /etc/openssh/banner  >  Authorized access only
+vim /etc/openssh/sshd_config >  \/
+Port = 2026
+MaxAuthTries = 2
+AllowUsers sshuser
+Banner /etc/openssh/banner
+
+выход и перезапуск
+
+systemctl restart sshd
+
+...
+
+2 сервер
+
+hostnamectl set-hostname hq-srv.au-team.irpo; exec bash
+timedatectl set-timezone Europe/Moscow
+vim /etc/net/ifaces/enp7s1/ipv4address  >  192.168.1.2/28
+vim /etc/net/ifaces/enp7s1/ipv4route  >  default via 192.168.1.1
+vim /etc/net/ifaces/enp7s1/options  > \/
+TYPE=eth
+ONBOOT=yes
+
+vim /etc/net/ifaces/enp7s1/resolv.conf  > \/
+search au-team.irpo
+nameserver 192.168.100.2
+создаем sshuser
+
+vim /etc/openssh/banner  >  Authorized access only
+
+Меняем значения в конфиге /etc/openssh/sshd  > \/
+Port 2026
+AllowUsers sshuser
+Banner /etc/openssh/banner
+systemctl restart sshd
+
+
+Cli
+
+время и хостнейм
+
+mkdir –p /etc/net/ifaces/vlan200
+vim /etc/net/ifaces/vlan200/ipv4address  >  192.168.200.2/28
+vim /etc/net/ifaces/vlan200/ipv4route   >  default via 192.168.200.1
+vim /etc/net/ifaces/vlan200/options
+
+Вводим:
+TYPE=vlan
+HOST=enp7s1
+VID=200
+
+vim /etc/net/ifaces/vlan200/resolv.conf
+
+Вводим:
+search au-team.irpo
+nameserver 192.168.100.2
+
+systemctl restart network
+ip -dr -c a
