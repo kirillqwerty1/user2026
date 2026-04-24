@@ -1,0 +1,140 @@
+На Коммутаторе 1
+
+mkdir -p /etc/net/ifaces/{enp7s{1,2},vlan{100,200,999},gre1}
+echo 'TYPE=eth' | tee /etc/net/ifaces/enp7s{1,2}/options
+vim /etc/net/ifaces/enp7s1/    ipv4address > 172.16.1.2/28   ipv4route >  default via 172.16.1.1   resolf.conf > nameserver 77.88.8.8 (если дел dns то 192.168.100.2)
+echo $'100\n200\n999' | xargs -1 bash -c 'echo -e "TYPE=vlan\nHOST=ebp7s2\nVID={}" > etc/net/ifaces/vlan{}/options'
+vim /etc/net/ifaces/vlan100/ipv4address > 192.168.100.1/27   vlan200/ >  192.168.200.1/28  vlan999/  >  192.168.99.1/29
+vim /etc/net/sysctl.conf    >   net.ipv4.ip_forward = 1
+cat <<EOF > /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.1.2
+TUNREMOTE=172.16.2.2
+TUNTTL=64
+TUNOPTIONS='ttl 64'
+EOF
+
+echo "10.10.10.1/30" > /etc/net/ifaces/gre1/ipv4address
+
+apt-get install frr sudo  tzdata dnsmasq nftables -y
+
+vim /etc/nftables/nftables.nft   и на коммутаторе 2 тож сделать
+#!usr/sbin/nft -f
+flush ruleset
+table ip nat {
+ chain postrouting {
+ type nat hook postrouting priority srenat
+ oifname “enp7s1” masquerade
+ }
+}
+
+systemctl enable --now nftables
+
+
+уст net_admin
+
+useradd <имя пользователя> или useradd -u <id> <имя пользователя> с нужным id
+echo "<имя пользователя>:P@ssw0rd" | chpasswd
+usermod -aG wheel <имя пользователя>
+echo "WHEEL_USERS ALL=(ALL:ALL) NOPASSWD: ALL" > /etc/sudoers.d/<имя пользователя>
+su -l <имя пользователя>
+sudo id
+(и не забыть выйти после)
+
+sed -l 's/ospfd=no/ospfd=yes/' /etc/frr/daemons ; grep ospf /etc/frr/deamons
+
+cat <<EOF > /etc/frr/frr.conf
+interface gre1
+ ip ospf area 0
+ ip ospf authentication
+ ip ospf authentication-key P@ssw0rd
+ no ip ospf passive
+exit
+!
+Interface vlan100
+ ip ospf area 0
+exit
+!
+Interface vlan200
+ ip ospf area 0
+exit
+!
+Interface vlan999
+ ip ospf area 0
+exit
+!
+router ospf
+ passive-interface default
+exit
+EOF
+systemctl enable --now frr
+sed -i 's/AUTO_LOCAL_RESOLVER=yes/AUTO_LOCAL_RESOLVER=no/' /etc/sysconfig/dnsmasq ; grep AUTO_LOCAL_RESOLVER /etc/sysconfig/dnsmasq
+vim /etc/dnsmasq.conf
+port=0
+interface=vlan200
+listen-address=192.168.200.1(айпи адрес vlan200)
+dhcp-authoritative
+dhcp-range=interface:vlan200, 192.168.200.2, 192.168.200.2, 255.255.255.240, 12h
+dhcp-option=3, 192.168.200.1
+dhcp-option=6, 192.168.100.2
+leasefile-ro
+EOF
+
+systemctl enable --now frr dnsmasq
+
+systemctl restart network
+
+дл отч
+cat /etc/resolv.conf
+ip r | grep ospf(динамическая маршрутизация)
+ss –lun | grep 67(динамическая конфигурация хостов)
+
+
+На Коммутаторе 2
+
+mkdir -p /etc/net/ifaces/{enp7s{1,2},/grel1}
+
+echo 'TUPE=eth'  | tee /etc/net/ifaces/{enp7s{1,2}/options
+
+vim /etc/net/ifaces/enp7s1/    ipv4address > 172.16.2.2/28   ipv4route >  default via 172.16.2.1   resolf.conf > nameserver 77.88.8.8 (если дел dns то 192.168.100.2)
+vim /etc/net/ifaces/enp7s2/ipv4address > 192.168.1.1/28
+vim /etc/net/sysctl.conf  > net.ipv4.ip_forward = 1
+
+cat <<EOF > /etc/net/ifaces/gre1/options
+TYPE=iptun
+TUNTYPE=gre
+TUNLOCAL=172.16.2.2
+TUNREMOTE=172.16.1.2
+TUNTTL=64
+TUNOPTIONS='ttl 64'
+EOF
+
+echo "10.10.10.2/30" > /etc/net/ifaces/gre1/ipv4address
+
+apt-get install frr sudo trdata nftables -y
+
+
+уст net_admin
+
+
+sed -i 's/ospfd=no/ospfd=yes/' /etc/frr/daemons ; grep ospf /etc/frr/deamons
+
+cat <<EOF > /etc/frr/frr/conf
+interface gre1
+  ip ospf area 0
+  ip ospf authentication
+  ip ospf authentication-key P@ssw0rd
+  no ip ospf passive
+exit
+!
+Interface enp7s2
+ ip ospf area 0
+exit
+!
+router ospf
+ passive-interface default
+exit
+EOF
+systemctl enable --now frr
+и рестарт нетворк
